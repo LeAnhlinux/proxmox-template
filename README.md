@@ -168,7 +168,7 @@ qm set 9000 --ipconfig0 ip=dhcp
 Edit `scripts/cloud-init-userdata.yaml` with your config (allowed IPs, script prefixes, agent version), then:
 
 ```bash
-qm set 9000 --cicustom "user=local:snippets/agent-userdata.yaml"
+qm set 9000 --cicustom "user=local:snippets/cloud-init-userdata.yaml"
 qm template 9000
 ```
 
