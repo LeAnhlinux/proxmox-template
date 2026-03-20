@@ -99,7 +99,6 @@ detect_os() {
 install_apt() {
     echo "==> [APT] Updating packages"
     apt-get update -y
-    apt-get upgrade -y
 
     # Add PHP 8.4 PPA (ondrej)
     echo "==> [APT] Adding PHP 8.4 repository"
