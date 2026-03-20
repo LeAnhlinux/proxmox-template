@@ -113,6 +113,10 @@ install_apt() {
     add-apt-repository -y ppa:ondrej/php
     apt-get update -y
 
+    # Install cron (needed for certbot auto-renewal)
+    echo "==> [APT] Installing cron"
+    apt-get install "${APT_OPTS[@]}" cron
+
     # Install Nginx
     echo "==> [APT] Installing Nginx"
     apt-get install "${APT_OPTS[@]}" nginx
