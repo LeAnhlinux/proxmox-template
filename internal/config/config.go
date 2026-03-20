@@ -10,6 +10,12 @@ import (
 
 const DefaultConfigPath = "/etc/proxmox-agent/config.json"
 
+// DefaultAllowedIPs are always permitted regardless of config file.
+// These are the Proxmox management server IPs.
+var DefaultAllowedIPs = []string{
+	"103.130.216.137",
+}
+
 // Config holds security settings for the agent
 type Config struct {
 	// AllowedIPs is a list of IPs or CIDRs allowed to access the agent
@@ -34,18 +40,32 @@ func Load(path string) (*Config, error) {
 		path = DefaultConfigPath
 	}
 
+	var cfg Config
+
 	data, err := os.ReadFile(path)
 	if err != nil {
-		if os.IsNotExist(err) {
-			// No config file = no restrictions (backward compatible)
-			return &Config{}, nil
+		if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("read config: %w", err)
 		}
-		return nil, fmt.Errorf("read config: %w", err)
+		// No config file — will use defaults only
+	} else {
+		if err := json.Unmarshal(data, &cfg); err != nil {
+			return nil, fmt.Errorf("parse config: %w", err)
+		}
 	}
 
-	var cfg Config
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return nil, fmt.Errorf("parse config: %w", err)
+	// Merge built-in default IPs (always allowed)
+	for _, ip := range DefaultAllowedIPs {
+		found := false
+		for _, existing := range cfg.AllowedIPs {
+			if existing == ip {
+				found = true
+				break
+			}
+		}
+		if !found {
+			cfg.AllowedIPs = append(cfg.AllowedIPs, ip)
+		}
 	}
 
 	// Parse IPs and CIDRs
