@@ -15,6 +15,10 @@
 
 set -euo pipefail
 
+# ─── Force dpkg to keep existing config files (avoid interactive prompts) ────
+export DEBIAN_FRONTEND=noninteractive
+APT_OPTS=(-y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold")
+
 # ─── Variables ───────────────────────────────────────────────────────────────
 
 DOMAIN="${DOMAIN:?DOMAIN env var is required}"
@@ -97,26 +101,29 @@ detect_os() {
 # ─── Install on Debian/Ubuntu ────────────────────────────────────────────────
 
 install_apt() {
+    # Fix any broken dpkg state from prior runs
+    dpkg --configure -a --force-confdef --force-confold || true
+
     echo "==> [APT] Updating packages"
     apt-get update -y
 
     # Add PHP 8.4 PPA (ondrej)
     echo "==> [APT] Adding PHP 8.4 repository"
-    apt-get install -y software-properties-common curl gnupg2
+    apt-get install "${APT_OPTS[@]}" software-properties-common curl gnupg2
     add-apt-repository -y ppa:ondrej/php
     apt-get update -y
 
     # Install Nginx
     echo "==> [APT] Installing Nginx"
-    apt-get install -y nginx
+    apt-get install "${APT_OPTS[@]}" nginx
 
     # Install MariaDB
     echo "==> [APT] Installing MariaDB"
-    apt-get install -y mariadb-server mariadb-client
+    apt-get install "${APT_OPTS[@]}" mariadb-server mariadb-client
 
     # Install PHP 8.4
     echo "==> [APT] Installing PHP 8.4"
-    apt-get install -y \
+    apt-get install "${APT_OPTS[@]}" \
         php8.4-fpm \
         php8.4-mysql \
         php8.4-curl \
@@ -132,7 +139,7 @@ install_apt() {
 
     # Install Certbot
     echo "==> [APT] Installing Certbot"
-    apt-get install -y certbot python3-certbot-nginx
+    apt-get install "${APT_OPTS[@]}" certbot python3-certbot-nginx
 
     # Install WP-CLI
     echo "==> [APT] Installing WP-CLI"
