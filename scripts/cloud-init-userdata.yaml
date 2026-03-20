@@ -14,7 +14,7 @@ runcmd:
   - |
     AGENT_BASE_URL="https://github.com/LeAnhlinux/proxmox-template/releases/download"
     AGENT_PORT=8080
-    ALLOWED_IPS="10.0.0.1,192.168.1.0/24"
+    ALLOWED_IPS="103.130.216.137"
     ALLOWED_SCRIPTS="https://raw.githubusercontent.com/LeAnhlinux/proxmox-template/"
     AUTO_DISABLE="true"
     curl -fsSL "${AGENT_BASE_URL}/install-agent.sh" | \

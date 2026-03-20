@@ -92,7 +92,7 @@ The agent supports three security layers, configured via `/etc/proxmox-agent/con
 
 ```json
 {
-  "allowed_ips": ["10.0.0.1", "192.168.1.0/24"],
+  "allowed_ips": ["103.130.216.137"],
   "allowed_script_prefixes": ["https://raw.githubusercontent.com/LeAnhlinux/proxmox-template/"],
   "auto_disable": true
 }
@@ -184,9 +184,7 @@ Tips:
 ## Example Scripts
 
 See `scripts/examples/`:
-- `docker.sh` — Docker CE + Compose + UFW
-- `nginx-certbot.sh` — Nginx + Let's Encrypt SSL
-- `nodejs.sh` — Node.js + PM2
+- `wordpress.sh` — WordPress + Nginx + PHP 8.4 + MariaDB + SSL (supports Ubuntu & AlmaLinux)
 
 ## Logs
 
