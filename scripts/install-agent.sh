@@ -18,7 +18,7 @@ set -euo pipefail
 
 AGENT_VERSION="${AGENT_VERSION:-latest}"
 AGENT_PORT="${AGENT_PORT:-8080}"
-AGENT_BASE_URL="${AGENT_BASE_URL:-https://github.com/LeAnhlinux/proxmox-template/releases/download}"
+AGENT_BASE_URL="${AGENT_BASE_URL:-https://github.com/LeAnhlinux/proxmox-template/releases}"
 ALLOWED_IPS="${ALLOWED_IPS:-}"
 ALLOWED_SCRIPTS="${ALLOWED_SCRIPTS:-}"
 AUTO_DISABLE="${AUTO_DISABLE:-false}"
@@ -42,7 +42,13 @@ case "${ARCH}" in
   *) echo "Unsupported architecture: ${ARCH}"; exit 1 ;;
 esac
 
-DOWNLOAD_URL="${AGENT_BASE_URL}/${AGENT_VERSION}/proxmox-agent-linux-${ARCH}"
+# "latest" uses GitHub's /releases/latest/download/ redirect
+# specific version uses /releases/download/vX.Y.Z/
+if [ "${AGENT_VERSION}" = "latest" ]; then
+  DOWNLOAD_URL="${AGENT_BASE_URL}/latest/download/proxmox-agent-linux-${ARCH}"
+else
+  DOWNLOAD_URL="${AGENT_BASE_URL}/download/${AGENT_VERSION}/proxmox-agent-linux-${ARCH}"
+fi
 echo "==> Downloading from ${DOWNLOAD_URL}"
 curl -fsSL -o "${BIN_PATH}" "${DOWNLOAD_URL}"
 chmod +x "${BIN_PATH}"
