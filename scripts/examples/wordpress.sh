@@ -31,6 +31,41 @@ echo "  Domain : ${DOMAIN}"
 echo "  DB     : ${DB_NAME} / ${DB_USER}"
 echo "=========================================="
 
+# ─── Wait for apt/dnf lock ───────────────────────────────────────────────────
+
+wait_for_package_manager() {
+    local max_wait=300
+    local waited=0
+
+    if command -v apt-get &>/dev/null; then
+        echo "==> Waiting for apt lock to be released..."
+        while fuser /var/lib/dpkg/lock-frontend /var/lib/apt/lists/lock /var/cache/apt/archives/lock /var/lib/dpkg/lock &>/dev/null 2>&1; do
+            if [ "${waited}" -ge "${max_wait}" ]; then
+                echo "ERROR: Timed out waiting for apt lock after ${max_wait}s"
+                exit 1
+            fi
+            echo "    apt is locked, waiting... (${waited}s)"
+            sleep 5
+            waited=$((waited + 5))
+        done
+    elif command -v dnf &>/dev/null; then
+        echo "==> Waiting for dnf lock to be released..."
+        while fuser /var/run/dnf.pid &>/dev/null 2>&1; do
+            if [ "${waited}" -ge "${max_wait}" ]; then
+                echo "ERROR: Timed out waiting for dnf lock after ${max_wait}s"
+                exit 1
+            fi
+            echo "    dnf is locked, waiting... (${waited}s)"
+            sleep 5
+            waited=$((waited + 5))
+        done
+    fi
+
+    if [ "${waited}" -gt 0 ]; then
+        echo "==> Package manager lock released after ${waited}s"
+    fi
+}
+
 # ─── Detect OS ───────────────────────────────────────────────────────────────
 
 detect_os() {
@@ -411,6 +446,7 @@ CREDS
 
 main() {
     detect_os
+    wait_for_package_manager
 
     if [ "${PKG_MANAGER}" = "apt" ]; then
         install_apt
