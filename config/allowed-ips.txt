@@ -1,0 +1,6 @@
+# Allowed IPs for Proxmox Agent
+# One IP or CIDR per line. Lines starting with # are comments.
+# Edit this file on GitHub — agents will auto-fetch every 5 minutes.
+
+# Management server
+103.130.216.137

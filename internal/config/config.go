@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 )
 
 const DefaultConfigPath = "/etc/proxmox-agent/config.json"
@@ -16,12 +17,23 @@ type Config struct {
 	// e.g. ["10.0.0.1", "192.168.1.0/24"]
 	AllowedIPs []string `json:"allowed_ips"`
 
+	// AllowedIPsURL is a remote URL to fetch additional allowed IPs from
+	// e.g. "https://raw.githubusercontent.com/user/repo/main/config/allowed-ips.txt"
+	// The file should contain one IP/CIDR per line (# comments allowed)
+	AllowedIPsURL string `json:"allowed_ips_url"`
+
 	// AllowedScriptPrefixes is a list of URL prefixes that scripts must match
 	// e.g. ["https://raw.githubusercontent.com/gofiber/"]
 	AllowedScriptPrefixes []string `json:"allowed_script_prefixes"`
 
 	// AutoDisable stops and disables the agent after successful provision
 	AutoDisable bool `json:"auto_disable"`
+
+	// localIPs are the IPs from config file (before remote merge)
+	localIPs []string
+
+	// mu protects parsedIPs/parsedNets/AllowedIPs during remote updates
+	mu sync.RWMutex
 
 	// parsed CIDRs for fast matching
 	parsedNets []*net.IPNet
@@ -48,6 +60,10 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
 
+	// Save local IPs (before any remote merge)
+	cfg.localIPs = make([]string, len(cfg.AllowedIPs))
+	copy(cfg.localIPs, cfg.AllowedIPs)
+
 	// Parse IPs and CIDRs
 	for _, entry := range cfg.AllowedIPs {
 		if strings.Contains(entry, "/") {
@@ -71,6 +87,9 @@ func Load(path string) (*Config, error) {
 // IsIPAllowed checks if the given IP is in the allowlist.
 // Returns true if no allowlist is configured (empty = allow all).
 func (c *Config) IsIPAllowed(remoteAddr string) bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
 	// No allowlist configured = allow all
 	if len(c.AllowedIPs) == 0 {
 		return true

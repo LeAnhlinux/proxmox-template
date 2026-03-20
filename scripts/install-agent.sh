@@ -12,6 +12,7 @@
 #   AGENT_BASE_URL   - Base URL to download agent binary
 #   ALLOWED_IPS      - Comma-separated IPs/CIDRs allowed to access agent (default: allow all)
 #   ALLOWED_SCRIPTS  - Comma-separated URL prefixes for allowed scripts (default: allow all)
+#   ALLOWED_IPS_URL  - URL to fetch additional allowed IPs (e.g. raw GitHub file)
 #   AUTO_DISABLE     - Set to "true" to disable agent after successful provision (default: false)
 
 set -euo pipefail
@@ -20,6 +21,7 @@ AGENT_VERSION="${AGENT_VERSION:-latest}"
 AGENT_PORT="${AGENT_PORT:-8080}"
 AGENT_BASE_URL="${AGENT_BASE_URL:-https://github.com/LeAnhlinux/proxmox-template/releases}"
 ALLOWED_IPS="${ALLOWED_IPS:-}"
+ALLOWED_IPS_URL="${ALLOWED_IPS_URL:-}"
 ALLOWED_SCRIPTS="${ALLOWED_SCRIPTS:-}"
 AUTO_DISABLE="${AUTO_DISABLE:-false}"
 
@@ -70,6 +72,12 @@ if [ -n "${ALLOWED_SCRIPTS}" ]; then
     awk 'BEGIN{printf "["} NR>1{printf ","} {printf "\"%s\"", $0} END{printf "]"}')
 fi
 
+# Allowed IPs URL
+ALLOWED_IPS_URL_JSON="\"${ALLOWED_IPS_URL}\""
+if [ -z "${ALLOWED_IPS_URL}" ]; then
+  ALLOWED_IPS_URL_JSON='""'
+fi
+
 # Auto disable boolean
 AUTO_DISABLE_JSON="false"
 if [ "${AUTO_DISABLE}" = "true" ]; then
@@ -79,6 +87,7 @@ fi
 cat > "${CONFIG_DIR}/config.json" <<EOF
 {
   "allowed_ips": ${IPS_JSON},
+  "allowed_ips_url": ${ALLOWED_IPS_URL_JSON},
   "allowed_script_prefixes": ${SCRIPTS_JSON},
   "auto_disable": ${AUTO_DISABLE_JSON}
 }

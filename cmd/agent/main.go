@@ -45,6 +45,13 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
+	// Start remote IP fetcher if configured
+	var fetcher *config.RemoteIPFetcher
+	if cfg.AllowedIPsURL != "" {
+		rep.Info("Remote IP allowlist enabled: %s (refresh every 5m)", cfg.AllowedIPsURL)
+		fetcher = config.NewRemoteIPFetcher(cfg, cfg.AllowedIPsURL)
+	}
+
 	// Setup executor
 	exec := executor.New(rep)
 
@@ -65,5 +72,8 @@ func main() {
 
 	<-quit
 	rep.Info("Shutting down...")
+	if fetcher != nil {
+		fetcher.Stop()
+	}
 	srv.Stop()
 }
