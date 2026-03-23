@@ -226,32 +226,15 @@ configure_ssl() {
         return 0
     fi
 
-    # Configure OLS to use Let's Encrypt certificate
+    # Replace self-signed cert with Let's Encrypt in existing wordpressssl listener
     local cert_path="/etc/letsencrypt/live/${DOMAIN}"
-    local vhost_ssl_conf="${SERVER_ROOT}/conf/vhosts/${DOMAIN}/vhconf.conf"
-
-    # Update OLS listener SSL config
     local httpd_conf="${SERVER_ROOT}/conf/httpd_config.conf"
-    if [ -f "${httpd_conf}" ]; then
-        # Check if SSL listener already exists
-        if ! grep -q "listener SSL" "${httpd_conf}"; then
-            cat >> "${httpd_conf}" <<SSLCONF
 
-listener SSL {
-  address                 *:443
-  secure                  1
-  keyFile                 ${cert_path}/privkey.pem
-  certFile                ${cert_path}/fullchain.pem
-  map                     ${DOMAIN} ${DOMAIN}
-}
-SSLCONF
-            echo "==> SSL listener added to OLS config"
-        else
-            # Update existing SSL listener with LE certs
-            sed -i "s|keyFile.*|keyFile                 ${cert_path}/privkey.pem|" "${httpd_conf}"
-            sed -i "s|certFile.*|certFile                ${cert_path}/fullchain.pem|" "${httpd_conf}"
-            echo "==> SSL listener updated with Let's Encrypt certs"
-        fi
+    if [ -f "${httpd_conf}" ]; then
+        # Update keyFile and certFile in the wordpressssl listener (created by ols1clk.sh)
+        sed -i "s|keyFile.*example\.key|keyFile                 ${cert_path}/privkey.pem|" "${httpd_conf}"
+        sed -i "s|certFile.*example\.crt|certFile                ${cert_path}/fullchain.pem|" "${httpd_conf}"
+        echo "==> Updated wordpressssl listener with Let's Encrypt certs"
     fi
 
     # Start OLS back
