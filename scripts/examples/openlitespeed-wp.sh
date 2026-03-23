@@ -342,11 +342,7 @@ CREDS
 setup_motd() {
     echo "==> Setting up SSH welcome screen"
 
-    # Disable default MOTD components
-    chmod -x /etc/update-motd.d/* 2>/dev/null || true
-
-    cat > /etc/update-motd.d/99-app-info <<'MOTD_SCRIPT'
-#!/bin/bash
+    local motd_script='#!/bin/bash
 CREDS_FILE="/root/.ols-wp-credentials"
 echo ""
 echo "╔══════════════════════════════════════════════════════════════╗"
@@ -361,15 +357,28 @@ fi
 echo ""
 echo "  Useful Commands:"
 echo "  ─────────────────────────────────────────────"
-echo "  systemctl restart lsws          Restart OLS"
-echo "  /usr/local/lsws/bin/lswsctrl status"
+echo "  /usr/local/lsws/bin/lswsctrl restart   Restart OLS"
+echo "  /usr/local/lsws/bin/lswsctrl status    OLS status"
 echo "  wp --path=/usr/local/lsws/wordpress/ --allow-root"
-echo "  certbot certificates            SSL status"
-echo "  cat /root/.ols-wp-credentials   View credentials"
+echo "  certbot certificates                   SSL status"
+echo "  cat /root/.ols-wp-credentials          View credentials"
 echo ""
-MOTD_SCRIPT
+'
 
-    chmod +x /etc/update-motd.d/99-app-info
+    # Method 1: update-motd.d (Ubuntu/Debian)
+    if [ -d /etc/update-motd.d ]; then
+        chmod -x /etc/update-motd.d/* 2>/dev/null || true
+        echo "${motd_script}" > /etc/update-motd.d/99-app-info
+        chmod +x /etc/update-motd.d/99-app-info
+    fi
+
+    # Method 2: profile.d (always works on SSH login)
+    echo "${motd_script}" > /etc/profile.d/99-app-info.sh
+    chmod +x /etc/profile.d/99-app-info.sh
+
+    # Disable default MOTD to avoid duplicate
+    [ -f /etc/default/motd-news ] && sed -i 's/ENABLED=1/ENABLED=0/' /etc/default/motd-news 2>/dev/null || true
+
     echo "==> MOTD configured"
 }
 
