@@ -171,9 +171,9 @@ pre_install() {
     if [ "${PKG_MANAGER}" = "apt" ]; then
         dpkg --configure -a --force-confdef --force-confold || true
         apt-get update -y
-        apt-get install "${APT_OPTS[@]}" curl perl wget
+        apt-get install "${APT_OPTS[@]}" curl perl wget gnupg
     else
-        dnf install -y curl perl wget
+        dnf install -y curl perl wget gnupg2
     fi
 
     # Disable SELinux if on RHEL-based
