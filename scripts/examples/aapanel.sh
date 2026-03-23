@@ -135,17 +135,18 @@ install_aapanel() {
         exit 1
     }
 
-    # Ensure aaPanel services are started
-    echo "==> Starting aaPanel services..."
-    bt start || /etc/init.d/bt start || true
-    sleep 3
+    # Wait for services to initialize after install
+    echo "==> Waiting 10s for aaPanel services to initialize..."
+    sleep 10
 
-    # Verify services are running
+    # Check if running, start if not
     if bt status 2>/dev/null | grep -q "running"; then
         echo "==> aaPanel services are running"
     else
-        echo "==> WARNING: aaPanel services may not be running, attempting restart..."
-        bt restart || /etc/init.d/bt restart || true
+        echo "==> aaPanel not running, starting..."
+        bt start || /etc/init.d/bt start || true
+        sleep 5
+        bt status || true
     fi
 
     echo "==> aaPanel installation completed"
