@@ -155,17 +155,6 @@ check_requirements() {
 # ─── Pre-install setup ───────────────────────────────────────────────────────
 
 pre_install() {
-    echo "==> Setting hostname to ${DOMAIN}"
-    hostnamectl set-hostname "${DOMAIN}"
-
-    # Ensure hostname resolves
-    if ! grep -q "${DOMAIN}" /etc/hosts; then
-        local server_ip
-        server_ip=$(hostname -I | awk '{print $1}')
-        echo "${server_ip} ${DOMAIN}" >> /etc/hosts
-        echo "==> Added ${server_ip} ${DOMAIN} to /etc/hosts"
-    fi
-
     # Disable conflicting services
     echo "==> Disabling conflicting services..."
     for svc in apache2 httpd nginx mysql mysqld mariadb postfix dovecot named bind9; do
