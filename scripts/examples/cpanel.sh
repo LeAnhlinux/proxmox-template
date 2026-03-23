@@ -251,6 +251,41 @@ EOF
     echo "==> Access info saved to ${CREDS_FILE}"
 }
 
+# ─── Welcome Screen (MOTD) ───────────────────────────────────────────────────
+
+setup_motd() {
+    echo "==> Setting up SSH welcome screen"
+
+    # Disable default MOTD components
+    chmod -x /etc/update-motd.d/* 2>/dev/null || true
+
+    cat > /etc/update-motd.d/99-app-info <<'MOTD_SCRIPT'
+#!/bin/bash
+CREDS_FILE="/root/.cpanel-info"
+echo ""
+echo "╔══════════════════════════════════════════════════════════════╗"
+echo "║                  cPanel & WHM SERVER                        ║"
+echo "╚══════════════════════════════════════════════════════════════╝"
+echo ""
+if [ -f "${CREDS_FILE}" ]; then
+    cat "${CREDS_FILE}"
+else
+    echo "  Credentials file not found: ${CREDS_FILE}"
+fi
+echo ""
+echo "  Useful Commands:"
+echo "  ─────────────────────────────────────────────"
+echo "  whmapi1 version                WHM API"
+echo "  /usr/local/cpanel/cpkeyclt     License check"
+echo "  /scripts/restartsrv_httpd      Restart Apache"
+echo "  cat /root/.cpanel-info         View info"
+echo ""
+MOTD_SCRIPT
+
+    chmod +x /etc/update-motd.d/99-app-info
+    echo "==> MOTD configured"
+}
+
 # ─── Main ────────────────────────────────────────────────────────────────────
 
 main() {
@@ -259,6 +294,7 @@ main() {
     pre_install
     install_cpanel
     post_install
+    setup_motd
 
     echo ""
     cat "${CREDS_FILE}"

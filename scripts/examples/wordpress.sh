@@ -452,6 +452,42 @@ CREDS
     echo "==> Credentials saved to ${CREDS_FILE}"
 }
 
+# ─── Welcome Screen (MOTD) ───────────────────────────────────────────────────
+
+setup_motd() {
+    echo "==> Setting up SSH welcome screen"
+
+    # Disable default MOTD components
+    chmod -x /etc/update-motd.d/* 2>/dev/null || true
+
+    cat > /etc/update-motd.d/99-app-info <<'MOTD_SCRIPT'
+#!/bin/bash
+CREDS_FILE="/root/.wp-credentials"
+echo ""
+echo "╔══════════════════════════════════════════════════════════════╗"
+echo "║                    WORDPRESS SERVER                         ║"
+echo "╚══════════════════════════════════════════════════════════════╝"
+echo ""
+if [ -f "${CREDS_FILE}" ]; then
+    cat "${CREDS_FILE}"
+else
+    echo "  Credentials file not found: ${CREDS_FILE}"
+fi
+echo ""
+echo "  Useful Commands:"
+echo "  ─────────────────────────────────────────────"
+echo "  wp --path=/var/www/*/       WordPress CLI"
+echo "  nginx -t && systemctl reload nginx"
+echo "  systemctl status php8.4-fpm"
+echo "  certbot certificates         SSL status"
+echo "  cat /root/.wp-credentials    View credentials"
+echo ""
+MOTD_SCRIPT
+
+    chmod +x /etc/update-motd.d/99-app-info
+    echo "==> MOTD configured"
+}
+
 # ─── Main ────────────────────────────────────────────────────────────────────
 
 main() {
@@ -471,6 +507,9 @@ main() {
     configure_ssl
     configure_firewall
     save_credentials
+
+    # Setup welcome screen (MOTD) when SSH login
+    setup_motd
 
     echo ""
     echo "=========================================="
