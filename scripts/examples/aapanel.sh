@@ -22,7 +22,7 @@ APT_OPTS=(-y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-co
 # ─── Variables ───────────────────────────────────────────────────────────────
 
 DOMAIN="${DOMAIN:?DOMAIN env var is required}"
-PANEL_PORT="${PANEL_PORT:-8888}"
+PANEL_PORT="${PANEL_PORT:-$(shuf -i 10000-65535 -n 1)}"
 PANEL_USER="${PANEL_USER:-}"
 PANEL_PASS="${PANEL_PASS:-}"
 CREDS_FILE="/root/.aapanel-credentials"
