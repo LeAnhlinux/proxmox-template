@@ -195,16 +195,36 @@ configure_ssl() {
     # Stop OLS temporarily so certbot can bind port 80
     "${SERVER_ROOT}/bin/lswsctrl" stop 2>/dev/null || systemctl stop lsws 2>/dev/null || true
 
-    certbot certonly \
-        --standalone \
-        -d "${DOMAIN}" \
-        --non-interactive \
-        --agree-tos \
-        --register-unsafely-without-email || {
-        echo "WARNING: SSL certificate request failed, continuing without SSL"
+    # Wait for port 80 to be fully released
+    echo "==> Waiting for port 80 to be released..."
+    local wait_port=0
+    while ss -tlnp | grep -q ':80 ' && [ "${wait_port}" -lt 30 ]; do
+        sleep 2
+        wait_port=$((wait_port + 2))
+    done
+
+    # Try certbot with retry
+    local ssl_ok=false
+    for attempt in 1 2 3; do
+        echo "==> Certbot attempt ${attempt}/3..."
+        if certbot certonly \
+            --standalone \
+            -d "${DOMAIN}" \
+            --non-interactive \
+            --agree-tos \
+            --register-unsafely-without-email; then
+            ssl_ok=true
+            break
+        fi
+        echo "==> Attempt ${attempt} failed, waiting 10s before retry..."
+        sleep 10
+    done
+
+    if [ "${ssl_ok}" = false ]; then
+        echo "WARNING: SSL certificate request failed after 3 attempts, continuing without SSL"
         "${SERVER_ROOT}/bin/lswsctrl" start 2>/dev/null || systemctl start lsws 2>/dev/null || true
         return 0
-    }
+    fi
 
     # Configure OLS to use Let's Encrypt certificate
     local cert_path="/etc/letsencrypt/live/${DOMAIN}"
@@ -243,6 +263,34 @@ SSLCONF
     fi
 
     echo "==> SSL configured with auto-renewal"
+}
+
+# ─── Fix WordPress URL (cookies/redirect issue) ─────────────────────────────
+
+fix_wordpress_url() {
+    echo "==> Fixing WordPress site URL to use domain..."
+
+    local wp_path="${SERVER_ROOT}/wordpress"
+    local site_url="https://${DOMAIN}"
+
+    # Check if SSL cert exists, use http if not
+    if [ ! -d "/etc/letsencrypt/live/${DOMAIN}" ]; then
+        site_url="http://${DOMAIN}"
+    fi
+
+    # Update WordPress siteurl and home via WP-CLI
+    if command -v wp &>/dev/null && [ -f "${wp_path}/wp-config.php" ]; then
+        wp option update siteurl "${site_url}" --path="${wp_path}" --allow-root || true
+        wp option update home "${site_url}" --path="${wp_path}" --allow-root || true
+        echo "==> WordPress URL set to ${site_url}"
+    else
+        # Fallback: update via MySQL directly
+        local db_name db_prefix
+        db_name=$(grep "DB_NAME" "${wp_path}/wp-config.php" | cut -d"'" -f4 2>/dev/null || echo "${DB_NAME}")
+        db_prefix=$(grep "table_prefix" "${wp_path}/wp-config.php" | cut -d"'" -f2 2>/dev/null || echo "wp_")
+        mysql -e "UPDATE ${db_name}.${db_prefix}options SET option_value='${site_url}' WHERE option_name IN ('siteurl','home');" || true
+        echo "==> WordPress URL set to ${site_url} (via MySQL)"
+    fi
 }
 
 # ─── Save Credentials ───────────────────────────────────────────────────────
@@ -333,6 +381,7 @@ main() {
     install_dependencies
     install_ols_wordpress
     configure_ssl
+    fix_wordpress_url
     save_credentials
     setup_motd
 
