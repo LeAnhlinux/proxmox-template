@@ -136,31 +136,10 @@ install_1panel() {
 
     echo "==> Running 1Panel installer (non-interactive)..."
 
-    # 1Panel install.sh reads from stdin for interactive config
-    # We pipe the answers: panel port, security entrance (default), username, password
-    # The quick_start.sh downloads and runs install.sh which expects:
-    #   1. Panel port (default: 38523)
-    #   2. Security entrance (default: random)
-    #   3. (then install proceeds)
-
-    # Run the quick_start script which downloads and extracts 1Panel
-    bash quick_start.sh || true
-
-    # Find the extracted install directory
-    local install_dir
-    install_dir=$(find /tmp -maxdepth 1 -name "1panel-*" -type d | head -1)
-
-    if [ -z "${install_dir}" ] || [ ! -f "${install_dir}/install.sh" ]; then
-        echo "ERROR: 1Panel install directory not found"
-        exit 1
-    fi
-
-    cd "${install_dir}"
-
-    # Run install.sh with default values piped in
-    # install.sh prompts: install dir → port → firewall port → username → password → security entrance
-    echo "==> Running 1Panel install.sh with defaults..."
-    printf '/opt\n%s\ny\n\n\n\n' "${PANEL_PORT}" | bash install.sh || {
+    # quick_start.sh downloads, extracts, and runs install.sh automatically
+    # install.sh prompts timeout after a few seconds and uses defaults
+    # All values are auto-generated: port, username, password, entrance
+    bash quick_start.sh || {
         echo "ERROR: 1Panel installation failed"
         exit 1
     }
