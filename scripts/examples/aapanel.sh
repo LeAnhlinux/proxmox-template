@@ -138,34 +138,6 @@ install_aapanel() {
     echo "==> aaPanel installation completed"
 }
 
-# ─── Open Firewall Ports ────────────────────────────────────────────────────
-
-configure_firewall() {
-    echo "==> Configuring firewall"
-
-    if command -v ufw &>/dev/null; then
-        ufw allow "${PANEL_PORT}"/tcp || true
-        ufw allow 80/tcp || true
-        ufw allow 443/tcp || true
-        ufw allow 20/tcp || true
-        ufw allow 21/tcp || true
-        ufw allow 888/tcp || true
-        ufw allow 39000:40000/tcp || true
-        echo "y" | ufw enable || true
-    elif command -v firewall-cmd &>/dev/null; then
-        firewall-cmd --permanent --add-port="${PANEL_PORT}"/tcp || true
-        firewall-cmd --permanent --add-port=80/tcp || true
-        firewall-cmd --permanent --add-port=443/tcp || true
-        firewall-cmd --permanent --add-port=20/tcp || true
-        firewall-cmd --permanent --add-port=21/tcp || true
-        firewall-cmd --permanent --add-port=888/tcp || true
-        firewall-cmd --permanent --add-port=39000-40000/tcp || true
-        firewall-cmd --reload || true
-    fi
-
-    echo "==> Firewall configured"
-}
-
 # ─── Save Credentials ───────────────────────────────────────────────────────
 
 save_credentials() {
@@ -268,7 +240,6 @@ main() {
     detect_os
     install_prerequisites
     install_aapanel
-    configure_firewall
     save_credentials
     setup_motd
 
