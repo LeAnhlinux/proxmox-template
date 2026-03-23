@@ -147,29 +147,41 @@ install_ols_wordpress() {
     # ols1clk.sh --wordpressplus: full auto WordPress install with domain
     # -Q: quiet mode, no prompts
     bash ols1clk.sh \
+        -Q \
         --wordpressplus "${DOMAIN}" \
         --lsphp "${LSPHP_VERSION}" \
-        --adminpassword "${OLS_ADMIN_PASS}" \
+        -A "${OLS_ADMIN_PASS}" \
+        -E "${WP_ADMIN_EMAIL}" \
+        -R "${DB_ROOT_PASS}" \
         --dbname "${DB_NAME}" \
         --dbuser "${DB_USER}" \
         --dbpassword "${DB_PASS}" \
-        --dbrootpassword "${DB_ROOT_PASS}" \
         --wpuser "${WP_ADMIN_USER}" \
-        --wppassword "${WP_ADMIN_PASS}" \
-        --wpemail "${WP_ADMIN_EMAIL}" \
-        -Q || {
+        --wppassword "${WP_ADMIN_PASS}" || {
         echo "ERROR: OpenLiteSpeed installation failed"
         exit 1
     }
 
-    # Verify OLS is running
+    # Verify OLS is running (service name: lsws or lshttpd)
     sleep 5
+    OLS_SERVICE=""
     if systemctl is-active --quiet lsws 2>/dev/null; then
-        echo "==> OpenLiteSpeed is running"
-    else
-        echo "==> OpenLiteSpeed not running, starting..."
-        systemctl enable --now lsws || true
+        OLS_SERVICE="lsws"
+    elif systemctl is-active --quiet lshttpd 2>/dev/null; then
+        OLS_SERVICE="lshttpd"
+    elif [ -x "${SERVER_ROOT}/bin/lswsctrl" ]; then
+        # Try starting via lswsctrl directly
+        "${SERVER_ROOT}/bin/lswsctrl" start || true
         sleep 3
+        OLS_SERVICE="lsws"
+    fi
+
+    if [ -n "${OLS_SERVICE}" ]; then
+        echo "==> OpenLiteSpeed is running (service: ${OLS_SERVICE})"
+    else
+        echo "==> WARNING: Could not verify OpenLiteSpeed service status"
+        # Try direct start as fallback
+        "${SERVER_ROOT}/bin/lswsctrl" start 2>/dev/null || true
     fi
 
     echo "==> OpenLiteSpeed + WordPress installation completed"
@@ -181,7 +193,7 @@ configure_ssl() {
     echo "==> Requesting SSL certificate for ${DOMAIN}"
 
     # Stop OLS temporarily so certbot can bind port 80
-    systemctl stop lsws || true
+    "${SERVER_ROOT}/bin/lswsctrl" stop 2>/dev/null || systemctl stop lsws 2>/dev/null || true
 
     certbot certonly \
         --standalone \
@@ -190,7 +202,7 @@ configure_ssl() {
         --agree-tos \
         --register-unsafely-without-email || {
         echo "WARNING: SSL certificate request failed, continuing without SSL"
-        systemctl start lsws
+        "${SERVER_ROOT}/bin/lswsctrl" start 2>/dev/null || systemctl start lsws 2>/dev/null || true
         return 0
     }
 
@@ -223,11 +235,11 @@ SSLCONF
     fi
 
     # Start OLS back
-    systemctl start lsws
+    "${SERVER_ROOT}/bin/lswsctrl" start 2>/dev/null || systemctl start lsws 2>/dev/null || true
 
     # Auto-renewal cron with OLS restart
     if ! crontab -l 2>/dev/null | grep -q "certbot renew"; then
-        (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --pre-hook 'systemctl stop lsws' --post-hook 'systemctl start lsws'") | crontab -
+        (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --pre-hook '${SERVER_ROOT}/bin/lswsctrl stop' --post-hook '${SERVER_ROOT}/bin/lswsctrl start'") | crontab -
     fi
 
     echo "==> SSL configured with auto-renewal"
