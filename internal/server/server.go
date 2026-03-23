@@ -142,8 +142,10 @@ func (s *Server) handleProvision(w http.ResponseWriter, r *http.Request) {
 	// Async mode
 	if r.URL.Query().Get("async") == "true" {
 		go func() {
-			s.exec.Run(task)
-			s.autoDisableIfNeeded()
+			result, _ := s.exec.Run(task)
+			if result != nil && result.Status == reporter.StatusSuccess {
+				s.autoDisableIfNeeded()
+			}
 		}()
 		writeJSON(w, 202, map[string]string{
 			"message": "provisioning started",
