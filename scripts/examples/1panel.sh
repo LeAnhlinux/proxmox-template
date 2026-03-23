@@ -136,13 +136,20 @@ install_1panel() {
 
     echo "==> Running 1Panel installer (non-interactive)..."
 
-    # quick_start.sh downloads, extracts, and runs install.sh automatically
-    # install.sh prompts timeout after a few seconds and uses defaults
-    # All values are auto-generated: port, username, password, entrance
-    bash quick_start.sh || {
+    # Capture installer output to parse credentials later
+    INSTALL_LOG="/tmp/1panel-install.log"
+    bash quick_start.sh 2>&1 | tee "${INSTALL_LOG}" || {
         echo "ERROR: 1Panel installation failed"
         exit 1
     }
+
+    # Parse credentials from installer output
+    # Format: "External address: http://IP:PORT/ENTRANCE"
+    #         "Panel user: xxxxx"
+    #         "Panel password: xxxxx"
+    PARSED_URL=$(grep -oP 'External address:\s*\K\S+' "${INSTALL_LOG}" || echo "")
+    PARSED_USER=$(grep -oP 'Panel user:\s*\K\S+' "${INSTALL_LOG}" || echo "")
+    PARSED_PASS=$(grep -oP 'Panel password:\s*\K\S+' "${INSTALL_LOG}" || echo "")
 
     # Wait for 1Panel to start
     echo "==> Waiting 10s for 1Panel to initialize..."
@@ -166,27 +173,17 @@ save_credentials() {
     local server_ip
     server_ip=$(hostname -I | awk '{print $1}')
 
-    # Extract credentials from 1Panel CLI
-    local panel_info=""
-    local panel_user=""
-    local panel_pass=""
-    local panel_entrance=""
+    # Use credentials parsed from installer output (captured in install_1panel)
+    local panel_url="${PARSED_URL:-http://${server_ip}:${PANEL_PORT}}"
+    local panel_user="${PARSED_USER:-}"
+    local panel_pass="${PARSED_PASS:-}"
 
-    if command -v 1pctl &>/dev/null; then
+    # Fallback: try 1pctl if installer output wasn't captured
+    if [ -z "${panel_user}" ] && command -v 1pctl &>/dev/null; then
+        local panel_info
         panel_info=$(1pctl user-info 2>/dev/null || true)
-        panel_user=$(echo "${panel_info}" | grep -i "username" | awk -F: '{print $2}' | xargs || echo "")
-        panel_pass=$(echo "${panel_info}" | grep -i "password" | awk -F: '{print $2}' | xargs || echo "")
-        panel_entrance=$(echo "${panel_info}" | grep -i "entrance" | awk -F: '{print $2}' | xargs || echo "")
-    fi
-
-    # Fallback: if 1pctl not available, try reading from config
-    if [ -z "${panel_user}" ] && [ -f /opt/1panel/conf/app.yaml ]; then
-        panel_user=$(grep -oP 'userName:\s*\K\S+' /opt/1panel/conf/app.yaml 2>/dev/null || echo "check 1pctl")
-    fi
-
-    local panel_url="http://${server_ip}:${PANEL_PORT}"
-    if [ -n "${panel_entrance}" ]; then
-        panel_url="${panel_url}/${panel_entrance}"
+        panel_user=$(echo "${panel_info}" | grep -oP 'Panel user:\s*\K\S+' || echo "see '1pctl user-info'")
+        panel_pass=$(echo "${panel_info}" | grep -oP 'Panel password:\s*\K\S+' || echo "see '1pctl user-info'")
     fi
 
     cat > "${CREDS_FILE}" <<EOF
@@ -199,11 +196,9 @@ save_credentials() {
     URL       : ${panel_url}
     Username  : ${panel_user:-see '1pctl user-info'}
     Password  : ${panel_pass:-see '1pctl user-info'}
-    Entrance  : ${panel_entrance:-see '1pctl user-info'}
 
   Domain    : ${DOMAIN}
   Server IP : ${server_ip}
-  Port      : ${PANEL_PORT}
 
   First Steps:
     1. Log into panel at ${panel_url}
