@@ -399,8 +399,11 @@ configure_ssl() {
         --redirect
 
     # Auto-renewal cron
-    if ! crontab -l 2>/dev/null | grep -q "certbot renew"; then
-        (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --post-hook 'systemctl reload nginx'") | crontab -
+    local existing_cron=""
+    existing_cron=$(crontab -l 2>/dev/null || true)
+    if ! echo "${existing_cron}" | grep -q "certbot renew"; then
+        echo "${existing_cron}
+0 3 * * * certbot renew --quiet --post-hook 'systemctl reload nginx'" | crontab - || true
     fi
 
     echo "==> SSL configured with auto-renewal"

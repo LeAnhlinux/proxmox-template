@@ -258,8 +258,11 @@ SSLCONF
     "${SERVER_ROOT}/bin/lswsctrl" start 2>/dev/null || systemctl start lsws 2>/dev/null || true
 
     # Auto-renewal cron with OLS restart
-    if ! crontab -l 2>/dev/null | grep -q "certbot renew"; then
-        (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --pre-hook '${SERVER_ROOT}/bin/lswsctrl stop' --post-hook '${SERVER_ROOT}/bin/lswsctrl start'") | crontab -
+    local existing_cron=""
+    existing_cron=$(crontab -l 2>/dev/null || true)
+    if ! echo "${existing_cron}" | grep -q "certbot renew"; then
+        echo "${existing_cron}
+0 3 * * * certbot renew --quiet --pre-hook '${SERVER_ROOT}/bin/lswsctrl stop' --post-hook '${SERVER_ROOT}/bin/lswsctrl start'" | crontab - || true
     fi
 
     echo "==> SSL configured with auto-renewal"
