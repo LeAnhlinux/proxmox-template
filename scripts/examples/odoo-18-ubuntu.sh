@@ -204,7 +204,7 @@ db_user = odoo
 db_password = ${ODOO_DB_PASS}
 db_name = False
 db_maxconn = 64
-list_db = False
+list_db = True
 
 ; Paths
 addons_path = ${ODOO_HOME}/odoo/addons,${ODOO_HOME}/custom-addons
@@ -387,8 +387,10 @@ configure_ssl() {
     }
 
     # Auto-renewal cron
-    if ! crontab -l 2>/dev/null | grep -q "certbot renew"; then
-        (crontab -l 2>/dev/null; echo "0 3 * * * certbot renew --quiet --post-hook 'systemctl reload nginx'") | crontab -
+    local existing_cron=""
+    existing_cron=$(crontab -l 2>/dev/null || true)
+    if ! echo "${existing_cron}" | grep -q "certbot renew"; then
+        (echo "${existing_cron}"; echo "0 3 * * * certbot renew --quiet --post-hook 'systemctl reload nginx'") | crontab -
     fi
 
     echo "==> SSL configured with auto-renewal"
