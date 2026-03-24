@@ -292,53 +292,6 @@ curl -X POST "http://VM_IP:8080/provision?async=true" \
 | Script logs | `/var/log/proxmox-agent/script-<name>-<timestamp>.log` |
 | Systemd journal | `journalctl -u proxmox-agent -f` |
 
-## Proxmox Template Setup
-
-### 1. Create base VM
-
-```bash
-# Download Ubuntu cloud image
-wget https://cloud-images.ubuntu.com/noble/current/noble-server-cloudimg-amd64.img
-
-# Create VM
-qm create 9000 --name ubuntu-24-04-base --memory 2048 --cores 2 --net0 virtio,bridge=vmbr0
-qm importdisk 9000 noble-server-cloudimg-amd64.img local-lvm
-qm set 9000 --scsihw virtio-scsi-pci --scsi0 local-lvm:vm-9000-disk-0
-qm set 9000 --boot c --bootdisk scsi0
-qm set 9000 --ide2 local-lvm:cloudinit
-qm set 9000 --serial0 socket --vga serial0
-qm set 9000 --agent enabled=1
-qm set 9000 --ciuser root --sshkeys ~/.ssh/id_rsa.pub --ipconfig0 ip=dhcp
-```
-
-### 2. Add cloud-init runcmd
-
-Edit `/var/lib/vz/snippets/cloud.cfg` (or embed in template) with the agent install runcmd shown in Quick Start.
-
-### 3. Convert to template
-
-```bash
-qm template 9000
-```
-
-### 4. Clone and provision
-
-```bash
-qm clone 9000 101 --name my-app --full
-qm start 101
-# Wait for boot + cloud-init, then:
-curl -X POST http://VM_IP:8080/provision -H "Content-Type: application/json" \
-  -d '{"script_url": "...", "domain": "app.example.com"}'
-```
-
-## Release
-
-```bash
-make build-all
-gh release create vX.Y.Z bin/proxmox-agent-linux-amd64 bin/proxmox-agent-linux-arm64 \
-  --title "vX.Y.Z - Title" --notes "changelog"
-```
-
 ## License
 
 MIT
