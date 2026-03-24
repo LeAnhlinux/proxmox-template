@@ -21,7 +21,7 @@ APT_OPTS=(-y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-co
 # ─── Variables ───────────────────────────────────────────────────────────────
 
 DOMAIN="${DOMAIN:?DOMAIN env var is required}"
-PANEL_PASS="${PANEL_PASS:-$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 16)}"
+PANEL_PASS=""
 INSTALL_ADDONS="${INSTALL_ADDONS:-false}"
 PANEL_PORT="8090"
 CREDS_FILE="/root/.cyberpanel-credentials"
@@ -31,6 +31,7 @@ echo "=========================================="
 echo "  CyberPanel Provisioner"
 echo "  Hostname : ${DOMAIN}"
 echo "  Port     : ${PANEL_PORT}"
+echo "  Password : random (auto-generated)"
 echo "  Addons   : ${INSTALL_ADDONS}"
 echo "=========================================="
 
@@ -100,25 +101,30 @@ install_cyberpanel() {
 
     echo "==> Running CyberPanel installer (non-interactive)..."
     echo "    Edition : OpenLiteSpeed"
-    echo "    Password: ${PANEL_PASS}"
+    echo "    Password: random (auto-generated)"
     echo "    Addons  : ${INSTALL_ADDONS}"
 
     # Build install command
     # -v ols     = OpenLiteSpeed (free)
-    # -p         = admin password
+    # -p random  = auto-generate 16-digit random password
     # -a         = install addons (memcached, redis)
-    local install_cmd="sh /tmp/cyberpanel.sh -v ols -p ${PANEL_PASS}"
+    local install_cmd="sh /tmp/cyberpanel.sh -v ols -p random"
 
     if [ "${INSTALL_ADDONS}" = "true" ]; then
         install_cmd="${install_cmd} -a"
     fi
 
-    # Capture output for credential parsing
+    # Capture output to parse credentials
     INSTALL_LOG="/tmp/cyberpanel-install.log"
     eval "${install_cmd}" 2>&1 | tee "${INSTALL_LOG}" || {
         echo "ERROR: CyberPanel installation failed"
         exit 1
     }
+
+    # Parse password from installer output
+    PANEL_PASS=$(grep -oP 'Admin password:\s*\K\S+' "${INSTALL_LOG}" 2>/dev/null || \
+                 grep -oP 'password:\s*\K\S+' "${INSTALL_LOG}" 2>/dev/null || \
+                 echo "see /usr/local/CyberPanel")
 
     # Wait for services to initialize
     echo "==> Waiting 15s for CyberPanel services to initialize..."
@@ -143,51 +149,6 @@ install_cyberpanel() {
     fi
 
     echo "==> CyberPanel installation completed"
-}
-
-# ─── Configure SSL ──────────────────────────────────────────────────────────
-
-configure_ssl() {
-    echo "==> Requesting SSL certificate for ${DOMAIN}"
-
-    # CyberPanel has built-in SSL via certbot
-    # Try using CyberPanel's own SSL management
-    if command -v certbot &>/dev/null; then
-        # Stop lsws temporarily for standalone verification
-        systemctl stop lsws 2>/dev/null || /usr/local/lsws/bin/lswsctrl stop 2>/dev/null || true
-        sleep 3
-
-        # Wait for port 80 to be released
-        local wait_count=0
-        while ss -tlnp | grep -q ':80 ' && [ "${wait_count}" -lt 15 ]; do
-            sleep 2
-            wait_count=$((wait_count + 1))
-        done
-
-        certbot certonly --standalone \
-            -d "${DOMAIN}" \
-            --non-interactive \
-            --agree-tos \
-            --register-unsafely-without-email || {
-            echo "WARNING: SSL certificate request failed, continuing without SSL"
-            systemctl start lsws 2>/dev/null || /usr/local/lsws/bin/lswsctrl start 2>/dev/null || true
-            return 0
-        }
-
-        # Start lsws back
-        systemctl start lsws 2>/dev/null || /usr/local/lsws/bin/lswsctrl start 2>/dev/null || true
-
-        # Auto-renewal cron
-        local existing_cron=""
-        existing_cron=$(crontab -l 2>/dev/null || true)
-        if ! echo "${existing_cron}" | grep -q "certbot renew"; then
-            (echo "${existing_cron}"; echo "0 3 * * * certbot renew --quiet --pre-hook 'systemctl stop lsws' --post-hook 'systemctl start lsws'") | crontab -
-        fi
-
-        echo "==> SSL configured with auto-renewal"
-    else
-        echo "WARNING: certbot not found, skipping SSL"
-    fi
 }
 
 # ─── Save Credentials ───────────────────────────────────────────────────────
@@ -280,7 +241,6 @@ main() {
     wait_for_apt
     install_dependencies
     install_cyberpanel
-    configure_ssl
     save_credentials
     setup_motd
 
