@@ -15,7 +15,7 @@ Lightweight Go agent that runs inside Proxmox VMs. Listens on port 8080, downloa
        │  callback (status, output)                  │ download script
        │                                             v
        │                                    ┌──────────────────┐
-       └─────────────────────────────────── │  Git repo        │
+       └─────────────────────────────────── │  GitHub repo     │
                                             │  (bash scripts)  │
                                             └──────────────────┘
 ```
@@ -31,17 +31,37 @@ Lightweight Go agent that runs inside Proxmox VMs. Listens on port 8080, downloa
 
 ## Quick Start
 
-### Download
+### Install via cloud-init (recommended)
 
-Grab the binary from [Releases](https://github.com/LeAnhlinux/proxmox-template/releases):
+Embed in `cloud.cfg` runcmd:
+
+```yaml
+runcmd:
+  - |
+    AGENT_VERSION="latest"
+    AGENT_BASE_URL="https://github.com/LeAnhlinux/proxmox-template/releases"
+    INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/LeAnhlinux/proxmox-template/main/scripts/install-agent.sh"
+    AGENT_PORT=8080
+    ALLOWED_IPS="103.130.216.137"
+    ALLOWED_IPS_URL="https://raw.githubusercontent.com/LeAnhlinux/proxmox-template/main/config/allowed-ips.txt"
+    ALLOWED_SCRIPTS="https://raw.githubusercontent.com/LeAnhlinux/proxmox-template/"
+    AUTO_DISABLE="true"
+    curl -fsSL "${INSTALL_SCRIPT_URL}" | \
+      AGENT_VERSION="${AGENT_VERSION}" \
+      AGENT_BASE_URL="${AGENT_BASE_URL}" \
+      AGENT_PORT="${AGENT_PORT}" \
+      ALLOWED_IPS="${ALLOWED_IPS}" \
+      ALLOWED_IPS_URL="${ALLOWED_IPS_URL}" \
+      ALLOWED_SCRIPTS="${ALLOWED_SCRIPTS}" \
+      AUTO_DISABLE="${AUTO_DISABLE}" \
+      bash
+```
+
+### Install manually
 
 ```bash
-# Linux amd64
-curl -fsSL -o proxmox-agent https://github.com/LeAnhlinux/proxmox-template/releases/download/v1.0.0/proxmox-agent-linux-amd64
-chmod +x proxmox-agent
-
-# Run
-./proxmox-agent -port 8080
+curl -fsSL https://raw.githubusercontent.com/LeAnhlinux/proxmox-template/main/scripts/install-agent.sh | \
+  AGENT_VERSION="latest" ALLOWED_IPS="YOUR_IP" AUTO_DISABLE="true" bash
 ```
 
 ### Build from source
@@ -56,15 +76,15 @@ make test           # Run tests
 
 ### `GET /health`
 
-Health check (no IP filtering, open for monitoring).
+Health check — open for monitoring, **no IP filter**.
 
 ```json
-{ "status": "ok", "hostname": "vm-docker-01", "agent": "proxmox-agent" }
+{ "status": "ok", "hostname": "vm-01", "agent": "proxmox-agent" }
 ```
 
 ### `GET /status`
 
-Current task status (IP filtered).
+Current task status — **IP filtered**.
 
 ```json
 { "task_status": "idle" }
@@ -72,32 +92,26 @@ Current task status (IP filtered).
 
 ### `POST /provision`
 
-Execute a provisioning script (IP filtered).
+Execute a provisioning script — **IP filtered**.
+
+**Sync mode** (default) — blocks until script completes:
 
 ```bash
 curl -X POST http://VM_IP:8080/provision \
   -H "Content-Type: application/json" \
   -d '{
-    "script_url": "https://raw.githubusercontent.com/your-repo/scripts/wordpress.sh",
+    "script_url": "https://raw.githubusercontent.com/LeAnhlinux/proxmox-template/main/scripts/template/wordpress.sh",
     "domain": "app.example.com",
     "callback_url": "https://api.example.com/vm/callback",
     "env": {
-      "PHP_VERSION": "8.4",
-      "NODE_VERSION": "22"
+      "DB_NAME": "mydb",
+      "DB_USER": "myuser"
     },
     "timeout": 3600
   }'
 ```
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `script_url` | Yes | URL to the bash script to download and execute |
-| `domain` | No | Injected as `$DOMAIN` env var (e.g., for Nginx vhost, SSL cert) |
-| `callback_url` | No | URL to receive status callbacks |
-| `env` | No | Custom environment variables passed to the script |
-| `timeout` | No | Execution timeout in seconds (default: 3600) |
-
-**Async mode** — add `?async=true`, returns immediately and reports via callback:
+**Async mode** — returns immediately, reports via callback:
 
 ```bash
 curl -X POST "http://VM_IP:8080/provision?async=true" \
@@ -105,30 +119,54 @@ curl -X POST "http://VM_IP:8080/provision?async=true" \
   -d '{ "script_url": "...", "callback_url": "https://api.example.com/callback" }'
 ```
 
+#### Request fields
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `script_url` | ✅ | URL to bash script to download and execute |
+| `domain` | — | Injected as `$DOMAIN` env var |
+| `callback_url` | — | URL to receive status callbacks (started/success/failed) |
+| `env` | — | Custom environment variables passed to the script |
+| `timeout` | — | Execution timeout in seconds (default: 3600) |
+
+#### Response codes
+
+| Code | Meaning |
+|------|---------|
+| 200 | Sync provision success |
+| 202 | Async provision accepted |
+| 400 | Bad request (missing script_url, invalid JSON) |
+| 403 | IP not allowed or script URL not in allowlist |
+| 409 | Another task is already running |
+| 500 | Script execution failed |
+
 ### Callback Payload
+
+Sent to `callback_url` on status change:
 
 ```json
 {
-  "hostname": "vm-docker-01",
+  "hostname": "vm-01",
   "domain": "app.example.com",
   "script": "https://raw.githubusercontent.com/.../wordpress.sh",
   "status": "success",
-  "output": "... script stdout/stderr (last 10,000 chars) ...",
+  "output": "... last 10,000 chars of stdout/stderr ...",
   "started_at": "2026-03-17T10:00:00Z",
   "ended_at": "2026-03-17T10:03:42Z",
   "duration": "3m42s"
 }
 ```
 
-Status values: `started`, `success`, `failed`
+Status values: `started` → `success` | `failed`
 
 ## Security
 
-Three security layers, configured via `/etc/proxmox-agent/config.json`:
+Three layers, configured via `/etc/proxmox-agent/config.json`:
 
 ```json
 {
-  "allowed_ips": ["103.130.216.137", "10.0.0.0/24"],
+  "allowed_ips": ["103.130.216.137"],
+  "allowed_ips_url": "https://raw.githubusercontent.com/LeAnhlinux/proxmox-template/main/config/allowed-ips.txt",
   "allowed_script_prefixes": ["https://raw.githubusercontent.com/LeAnhlinux/proxmox-template/"],
   "auto_disable": true
 }
@@ -136,15 +174,127 @@ Three security layers, configured via `/etc/proxmox-agent/config.json`:
 
 | Layer | Description |
 |-------|-------------|
-| **IP allowlist** | Only specified IPs/CIDRs can access `/provision` and `/status`. `/health` remains open. Empty = allow all. |
-| **Script URL allowlist** | Only scripts matching trusted URL prefixes can execute. Empty = allow all. |
+| **IP Allowlist (local)** | IPs/CIDRs in `allowed_ips`. Applies to `/provision` and `/status`. `/health` always open. |
+| **IP Allowlist (remote)** | Agent fetches `allowed_ips_url` every 5 minutes. Edit on GitHub, no rebuild needed. Format: one IP/CIDR per line, `#` for comments. |
+| **Script URL Prefix** | Only scripts matching `allowed_script_prefixes` can execute. |
 | **Auto-disable** | After successful provision, runs `systemctl disable --now proxmox-agent`. |
 
-If no config file exists, all restrictions are disabled (allow-all).
+**No config file = allow all** (backward compatible).
 
-## Setup on Proxmox
+### Remote IP Allowlist (`config/allowed-ips.txt`)
 
-### 1. Prepare base template
+```txt
+# Management servers
+103.130.216.137
+103.130.216.58
+103.241.42.10
+
+# Office network
+192.168.1.0/24
+```
+
+Edit this file on GitHub → agent auto-fetches every 5 minutes.
+
+## CLI Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-port` | 8080 | HTTP listen port |
+| `-log-dir` | `/var/log/proxmox-agent` | Log directory |
+| `-config` | `/etc/proxmox-agent/config.json` | Config file path |
+| `-version` | — | Print version and exit |
+
+## Install Script Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AGENT_VERSION` | `latest` | Release tag (`v1.1.0`) or `latest` |
+| `AGENT_BASE_URL` | GitHub releases URL | Base URL for binary download |
+| `AGENT_PORT` | `8080` | Agent listen port |
+| `ALLOWED_IPS` | — | Comma-separated IPs/CIDRs |
+| `ALLOWED_IPS_URL` | — | Remote IP allowlist URL |
+| `ALLOWED_SCRIPTS` | — | Comma-separated URL prefixes |
+| `AUTO_DISABLE` | `false` | Set `true` to auto-disable after provision |
+
+## Provision Flow
+
+```
+POST /provision
+    │
+    ├── IP filter → 403 if blocked
+    ├── Validate JSON → 400 if invalid
+    ├── Script URL check → 403 if not in allowlist
+    ├── Mutex check → 409 if task running
+    │
+    ├── Send "started" callback
+    ├── Download script → /opt/proxmox-agent/scripts/
+    ├── Execute: /bin/bash <script>
+    │     Environment:
+    │       DEBIAN_FRONTEND=noninteractive
+    │       LC_ALL=C
+    │       DOMAIN=<value>
+    │       <custom env vars>
+    │
+    ├── Capture stdout+stderr
+    ├── Truncate output to last 10,000 chars (for callback)
+    ├── Send "success"/"failed" callback
+    ├── Save log → /var/log/proxmox-agent/script-<name>-<timestamp>.log
+    │
+    └── If success + auto_disable:
+          sleep 2s → systemctl disable --now proxmox-agent
+```
+
+## Available Provisioning Scripts
+
+### Control Panel (`scripts/panel/`)
+
+| Script | Description |
+|--------|-------------|
+| `1panel.sh` | [1Panel](https://1panel.pro) — modern server management panel |
+| `aapanel.sh` | [aaPanel](https://aapanel.com) — web hosting control panel |
+| `cpanel.sh` | [cPanel](https://cpanel.net) — commercial hosting panel (requires license) |
+
+### App Templates (`scripts/template/`)
+
+| Script | Description |
+|--------|-------------|
+| `wordpress.sh` | WordPress + Nginx + PHP 8.4 + MariaDB + SSL |
+| `openlitespeed-wp.sh` | WordPress + OpenLiteSpeed + MariaDB + SSL |
+| `odoo-18-ubuntu.sh` | Odoo 18 ERP + PostgreSQL 16 + Nginx + SSL |
+| `vtiger-ubuntu.sh` | Vtiger CRM + Apache + PHP + MySQL + SSL |
+| `coolify.sh` | Coolify self-hosted PaaS + Docker |
+
+### Usage example
+
+```bash
+# WordPress with Nginx
+curl -X POST http://VM_IP:8080/provision \
+  -H "Content-Type: application/json" \
+  -d '{
+    "script_url": "https://raw.githubusercontent.com/LeAnhlinux/proxmox-template/main/scripts/template/wordpress.sh",
+    "domain": "blog.example.com"
+  }'
+
+# 1Panel
+curl -X POST "http://VM_IP:8080/provision?async=true" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "script_url": "https://raw.githubusercontent.com/LeAnhlinux/proxmox-template/main/scripts/panel/1panel.sh",
+    "domain": "panel.example.com"
+  }'
+```
+
+## Logs
+
+| Log | Location |
+|-----|----------|
+| Agent log | `/var/log/proxmox-agent/agent.log` |
+| Script logs | `/var/log/proxmox-agent/script-<name>-<timestamp>.log` |
+| Systemd journal | `journalctl -u proxmox-agent -f` |
+
+## Proxmox Template Setup
+
+### 1. Create base VM
 
 ```bash
 # Download Ubuntu cloud image
@@ -158,62 +308,36 @@ qm set 9000 --boot c --bootdisk scsi0
 qm set 9000 --ide2 local-lvm:cloudinit
 qm set 9000 --serial0 socket --vga serial0
 qm set 9000 --agent enabled=1
-qm set 9000 --ciuser root
-qm set 9000 --sshkeys ~/.ssh/id_rsa.pub
-qm set 9000 --ipconfig0 ip=dhcp
+qm set 9000 --ciuser root --sshkeys ~/.ssh/id_rsa.pub --ipconfig0 ip=dhcp
 ```
 
-### 2. Add cloud-init userdata
+### 2. Add cloud-init runcmd
 
-Edit `scripts/cloud-init-userdata.yaml` with your config (allowed IPs, script prefixes, agent version), then:
+Edit `/var/lib/vz/snippets/cloud.cfg` (or embed in template) with the agent install runcmd shown in Quick Start.
+
+### 3. Convert to template
 
 ```bash
-qm set 9000 --cicustom "user=local:snippets/cloud-init-userdata.yaml"
 qm template 9000
 ```
 
-Cloud-init will run `scripts/install-agent.sh` on first boot, which downloads the binary, generates the security config, and starts the systemd service.
-
-### 3. Provision a VM
+### 4. Clone and provision
 
 ```bash
-# Clone and start
-qm clone 9000 101 --name my-app-vm --full
+qm clone 9000 101 --name my-app --full
 qm start 101
-
-# Wait for boot, then provision
-curl -X POST http://VM_IP:8080/provision \
-  -H "Content-Type: application/json" \
-  -d '{"script_url": "https://raw.githubusercontent.com/LeAnhlinux/proxmox-template/main/scripts/examples/wordpress.sh"}'
+# Wait for boot + cloud-init, then:
+curl -X POST http://VM_IP:8080/provision -H "Content-Type: application/json" \
+  -d '{"script_url": "...", "domain": "app.example.com"}'
 ```
 
-## Writing Provision Scripts
+## Release
 
 ```bash
-#!/bin/bash
-set -euo pipefail
-
-echo "==> Installing MyApp"
-apt-get -y update
-apt-get -y install myapp
-
-systemctl enable myapp
-echo "==> Done!"
+make build-all
+gh release create vX.Y.Z bin/proxmox-agent-linux-amd64 bin/proxmox-agent-linux-arm64 \
+  --title "vX.Y.Z - Title" --notes "changelog"
 ```
-
-- Use `set -euo pipefail` — script stops on first error
-- `DEBIAN_FRONTEND=noninteractive` is set automatically by the agent
-- `$DOMAIN` and custom env vars from the API request are available
-- Scripts run as root, stdout/stderr is captured and sent in the callback
-- See `scripts/examples/` for real-world examples
-
-## Logs
-
-| Log | Location |
-|-----|----------|
-| Agent log | `/var/log/proxmox-agent/agent.log` |
-| Script logs | `/var/log/proxmox-agent/script-*.log` |
-| Systemd journal | `journalctl -u proxmox-agent -f` |
 
 ## License
 
