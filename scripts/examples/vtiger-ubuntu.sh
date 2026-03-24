@@ -138,7 +138,8 @@ configure_php() {
         sed -i 's/^max_input_vars = .*/max_input_vars = 5000/' "${php_ini}"
         sed -i "s/^display_errors = .*/display_errors = Off/" "${php_ini}"
         sed -i "s/^short_open_tag = .*/short_open_tag = Off/" "${php_ini}"
-        sed -i "s|^error_reporting = .*|error_reporting = E_ERROR \& ~E_NOTICE \& ~E_STRICT \& ~E_DEPRECATED|" "${php_ini}"
+        sed -i "s/^log_errors = .*/log_errors = On/" "${php_ini}"
+        sed -i "s|^error_reporting = .*|error_reporting = E_WARNING \& ~E_NOTICE \& ~E_DEPRECATED \& ~E_STRICT|" "${php_ini}"
         echo "==> PHP ${php_ver} configured"
     else
         echo "WARNING: php.ini not found at ${php_ini}"
