@@ -31,32 +31,6 @@ Lightweight Go agent that runs inside Proxmox VMs. Listens on port 8080, downloa
 
 ## Quick Start
 
-### Install via cloud-init (recommended)
-
-Embed in `cloud.cfg` runcmd:
-
-```yaml
-runcmd:
-  - |
-    AGENT_VERSION="latest"
-    AGENT_BASE_URL="https://github.com/LeAnhlinux/proxmox-template/releases"
-    INSTALL_SCRIPT_URL="https://raw.githubusercontent.com/LeAnhlinux/proxmox-template/main/scripts/install-agent.sh"
-    AGENT_PORT=8080
-    ALLOWED_IPS="103.130.216.137"
-    ALLOWED_IPS_URL="https://raw.githubusercontent.com/LeAnhlinux/proxmox-template/main/config/allowed-ips.txt"
-    ALLOWED_SCRIPTS="https://raw.githubusercontent.com/LeAnhlinux/proxmox-template/"
-    AUTO_DISABLE="true"
-    curl -fsSL "${INSTALL_SCRIPT_URL}" | \
-      AGENT_VERSION="${AGENT_VERSION}" \
-      AGENT_BASE_URL="${AGENT_BASE_URL}" \
-      AGENT_PORT="${AGENT_PORT}" \
-      ALLOWED_IPS="${ALLOWED_IPS}" \
-      ALLOWED_IPS_URL="${ALLOWED_IPS_URL}" \
-      ALLOWED_SCRIPTS="${ALLOWED_SCRIPTS}" \
-      AUTO_DISABLE="${AUTO_DISABLE}" \
-      bash
-```
-
 ### Install manually
 
 ```bash
