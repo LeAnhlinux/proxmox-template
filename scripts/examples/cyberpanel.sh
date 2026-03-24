@@ -93,10 +93,21 @@ install_cyberpanel() {
         exit 1
     }
 
-    # Pre-install acme.sh (CyberPanel expects it but doesn't always install it first)
+    # Pre-install acme.sh from GitHub (CyberPanel tries gitee.com which often fails outside China)
     if [ ! -f /root/.acme.sh/acme.sh ]; then
-        echo "==> Installing acme.sh..."
-        curl -fsSL https://get.acme.sh | sh -s email=admin@"${DOMAIN}" || true
+        echo "==> Installing acme.sh from GitHub..."
+        cd /tmp
+        git clone https://github.com/acmesh-official/acme.sh.git || true
+        if [ -d /tmp/acme.sh ]; then
+            cd /tmp/acme.sh
+            ./acme.sh --install || true
+            cd /tmp
+            rm -rf /tmp/acme.sh
+        fi
+    fi
+    # Upgrade acme.sh (patch gitee URL to GitHub in case CyberPanel overwrites)
+    if [ -f /root/.acme.sh/acme.sh ]; then
+        /root/.acme.sh/acme.sh --upgrade --auto-upgrade || true
     fi
 
     echo "==> Running CyberPanel installer (non-interactive, OpenLiteSpeed)..."
