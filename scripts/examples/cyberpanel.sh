@@ -6,9 +6,6 @@
 # Required env vars:
 #   DOMAIN          - Hostname for the server (e.g. panel.example.com) — injected by agent
 #
-# Optional env vars:
-#   PANEL_PASS      - Admin password (default: random 16-char)
-#   INSTALL_ADDONS  - Install Memcached + Redis (default: false, set "true" to enable)
 #
 # Supports: Ubuntu 22.04, Ubuntu 24.04
 
@@ -22,7 +19,6 @@ APT_OPTS=(-y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-co
 
 DOMAIN="${DOMAIN:?DOMAIN env var is required}"
 PANEL_PASS=""
-INSTALL_ADDONS="${INSTALL_ADDONS:-false}"
 PANEL_PORT="8090"
 CREDS_FILE="/root/.cyberpanel-credentials"
 INSTALL_SCRIPT_URL="https://cyberpanel.net/install.sh"
@@ -31,8 +27,6 @@ echo "=========================================="
 echo "  CyberPanel Provisioner"
 echo "  Hostname : ${DOMAIN}"
 echo "  Port     : ${PANEL_PORT}"
-echo "  Password : random (auto-generated)"
-echo "  Addons   : ${INSTALL_ADDONS}"
 echo "=========================================="
 
 # ─── Wait for package manager lock ──────────────────────────────────────────
@@ -99,24 +93,11 @@ install_cyberpanel() {
         exit 1
     }
 
-    echo "==> Running CyberPanel installer (non-interactive)..."
-    echo "    Edition : OpenLiteSpeed"
-    echo "    Password: random (auto-generated)"
-    echo "    Addons  : ${INSTALL_ADDONS}"
-
-    # Build install command
-    # -v ols     = OpenLiteSpeed (free)
-    # -p random  = auto-generate 16-digit random password
-    # -a         = install addons (memcached, redis)
-    local install_cmd="sh /tmp/cyberpanel.sh -v ols -p random"
-
-    if [ "${INSTALL_ADDONS}" = "true" ]; then
-        install_cmd="${install_cmd} -a"
-    fi
+    echo "==> Running CyberPanel installer (non-interactive, OpenLiteSpeed)..."
 
     # Capture output to parse credentials
     INSTALL_LOG="/tmp/cyberpanel-install.log"
-    eval "${install_cmd}" 2>&1 | tee "${INSTALL_LOG}" || {
+    sh /tmp/cyberpanel.sh -v ols -p random 2>&1 | tee "${INSTALL_LOG}" || {
         echo "ERROR: CyberPanel installation failed"
         exit 1
     }
