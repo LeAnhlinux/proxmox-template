@@ -93,6 +93,12 @@ install_cyberpanel() {
         exit 1
     }
 
+    # Pre-install acme.sh (CyberPanel expects it but doesn't always install it first)
+    if [ ! -f /root/.acme.sh/acme.sh ]; then
+        echo "==> Installing acme.sh..."
+        curl -fsSL https://get.acme.sh | sh -s email=admin@"${DOMAIN}" || true
+    fi
+
     echo "==> Running CyberPanel installer (non-interactive, OpenLiteSpeed)..."
 
     # Capture output to parse credentials
