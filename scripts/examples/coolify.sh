@@ -86,9 +86,7 @@ install_dependencies() {
 
     echo "==> Installing dependencies..."
     apt-get update -y
-    apt-get install "${APT_OPTS[@]}" \
-        curl wget git jq openssl \
-        certbot cron
+    apt-get install "${APT_OPTS[@]}" curl wget git jq openssl
 
     echo "==> Dependencies installed"
 }
@@ -123,61 +121,11 @@ install_coolify() {
     echo "==> Coolify installed"
 }
 
-# ─── SSL (Let's Encrypt) ────────────────────────────────────────────────────
-
-configure_ssl() {
-    echo "==> Requesting SSL certificate for ${DOMAIN}"
-
-    # Stop anything on port 80 temporarily
-    local port80_pid=""
-    port80_pid=$(lsof -ti:80 2>/dev/null || true)
-    if [ -n "${port80_pid}" ]; then
-        echo "==> Temporarily stopping service on port 80..."
-        kill "${port80_pid}" 2>/dev/null || true
-        sleep 3
-    fi
-
-    # Wait for port 80 to be free
-    local wait_count=0
-    while lsof -ti:80 >/dev/null 2>&1; do
-        sleep 2
-        wait_count=$((wait_count + 1))
-        if [ "${wait_count}" -ge 10 ]; then
-            echo "WARNING: Port 80 still in use, skipping SSL"
-            return 0
-        fi
-    done
-
-    certbot certonly --standalone \
-        -d "${DOMAIN}" \
-        --non-interactive \
-        --agree-tos \
-        --register-unsafely-without-email || {
-        echo "WARNING: SSL certificate request failed, continuing without SSL"
-        return 0
-    }
-
-    # Auto-renewal cron
-    local existing_cron=""
-    existing_cron=$(crontab -l 2>/dev/null || true)
-    if ! echo "${existing_cron}" | grep -q "certbot renew"; then
-        (echo "${existing_cron}"; echo "0 3 * * * certbot renew --quiet") | crontab -
-    fi
-
-    echo "==> SSL configured with auto-renewal"
-    echo "==> NOTE: Configure SSL in Coolify dashboard under Settings > SSL"
-}
-
 # ─── Save Credentials ───────────────────────────────────────────────────────
 
 save_credentials() {
     local server_ip
     server_ip=$(hostname -I | awk '{print $1}')
-
-    local access_url="http://${server_ip}:${COOLIFY_PORT}"
-    if [ -f "/etc/letsencrypt/live/${DOMAIN}/fullchain.pem" ]; then
-        access_url="https://${DOMAIN}"
-    fi
 
     cat > "${CREDS_FILE}" <<CREDS
 ==========================================
@@ -186,19 +134,14 @@ save_credentials() {
 ==========================================
 
   Dashboard:
-    URL        : ${access_url}
-    Alt URL    : http://${server_ip}:${COOLIFY_PORT}
+    URL        : http://${server_ip}:${COOLIFY_PORT}
     Port       : ${COOLIFY_PORT}
 
   IMPORTANT: Create your admin account immediately!
   First person to access the registration page
   gains full control of the server.
 
-  Domain     : ${DOMAIN}
   Server IP  : ${server_ip}
-
-  SSL Cert   : /etc/letsencrypt/live/${DOMAIN}/
-  (Configure SSL in Coolify Settings)
 
   Docker:
     docker ps                   Running containers
@@ -238,8 +181,6 @@ echo "  ────────────────────────
 echo "  docker ps                          Running containers"
 echo "  docker stats                       Resource usage"
 echo "  cd /data/coolify && docker compose logs -f"
-echo "  systemctl status coolify           Coolify status"
-echo "  certbot certificates               SSL certificate info"
 echo ""
 '
 
@@ -260,7 +201,6 @@ main() {
     check_requirements
     install_dependencies
     install_coolify
-    configure_ssl
     save_credentials
     setup_motd
 
@@ -271,10 +211,9 @@ main() {
     echo "=========================================="
     echo "  Coolify installed!"
     echo "  Dashboard : http://${server_ip}:${COOLIFY_PORT}"
-    echo "  Domain    : https://${DOMAIN}"
     echo "  Creds     : ${CREDS_FILE}"
     echo ""
-    echo "  ⚠ Create admin account NOW at:"
+    echo "  Create admin account NOW at:"
     echo "  http://${server_ip}:${COOLIFY_PORT}"
     echo "=========================================="
 }
