@@ -30,7 +30,6 @@ CREDS_FILE="/root/.listmonk-credentials"
 echo "=========================================="
 echo "  Listmonk Provisioner"
 echo "  Domain : ${DOMAIN}"
-echo "  Admin  : ${LISTMONK_ADMIN_USER}"
 echo "=========================================="
 
 # ─── Apt lock wait ───────────────────────────────────────────────────────────
@@ -366,8 +365,6 @@ main() {
     echo "=========================================="
     echo "  Listmonk installed!"
     echo "  Dashboard : https://${DOMAIN}"
-    echo "  Username  : ${LISTMONK_ADMIN_USER}"
-    echo "  Password  : ${LISTMONK_ADMIN_PASS}"
     echo "  Creds     : ${CREDS_FILE}"
     echo "=========================================="
 }
