@@ -170,6 +170,28 @@ COMPOSE
     cd "${LISTMONK_DIR}"
     docker compose pull
 
+    # Start only the database first
+    echo "==> Starting PostgreSQL..."
+    docker compose up -d db
+
+    # Wait for DB to be healthy
+    echo "==> Waiting for database to be ready..."
+    local db_retries=0
+    while ! docker compose exec -T db pg_isready -U listmonk >/dev/null 2>&1; do
+        sleep 3
+        db_retries=$((db_retries + 1))
+        if [ "${db_retries}" -ge 20 ]; then
+            echo "ERROR: Database failed to start"
+            exit 1
+        fi
+    done
+    echo "==> Database is ready"
+
+    # Initialize database schema (required on first run)
+    echo "==> Initializing Listmonk database..."
+    docker compose run --rm app ./listmonk --install --yes
+
+    # Start the full stack
     echo "==> Starting Listmonk..."
     docker compose up -d
 
