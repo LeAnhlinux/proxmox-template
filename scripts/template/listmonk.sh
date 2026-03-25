@@ -8,8 +8,6 @@
 #   DOMAIN          - Domain name (e.g. mail.example.com) — injected by agent
 #
 # Optional env vars:
-#   LISTMONK_ADMIN_USER  - Admin username (default: admin)
-#   LISTMONK_ADMIN_PASS  - Admin password (default: random)
 #   LISTMONK_DB_PASS     - PostgreSQL password (default: random)
 #
 # Requirements: 1 CPU core, 1GB RAM, 10GB disk
@@ -24,8 +22,6 @@ APT_OPTS=(-y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-co
 # ─── Variables ───────────────────────────────────────────────────────────────
 
 DOMAIN="${DOMAIN:?DOMAIN env var is required}"
-LISTMONK_ADMIN_USER="${LISTMONK_ADMIN_USER:-admin}"
-LISTMONK_ADMIN_PASS="${LISTMONK_ADMIN_PASS:-$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 16)}"
 LISTMONK_DB_PASS="${LISTMONK_DB_PASS:-$(openssl rand -base64 24 | tr -dc 'a-zA-Z0-9' | head -c 24)}"
 LISTMONK_PORT="9000"
 LISTMONK_DIR="/opt/listmonk"
@@ -144,8 +140,6 @@ services:
       - "127.0.0.1:${LISTMONK_PORT}:9000"
     environment:
       - LISTMONK_app__address=0.0.0.0:9000
-      - LISTMONK_app__admin_username=${LISTMONK_ADMIN_USER}
-      - LISTMONK_app__admin_password=${LISTMONK_ADMIN_PASS}
       - LISTMONK_db__host=listmonk_db
       - LISTMONK_db__port=5432
       - LISTMONK_db__user=listmonk
@@ -286,8 +280,7 @@ save_credentials() {
 
   Dashboard:
     URL        : https://${DOMAIN}
-    Username   : ${LISTMONK_ADMIN_USER}
-    Password   : ${LISTMONK_ADMIN_PASS}
+    Login      : Set on first access via web UI
 
   Database (PostgreSQL):
     Host       : listmonk_db (Docker)
