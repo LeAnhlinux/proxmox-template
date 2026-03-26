@@ -76,7 +76,6 @@ curl -X POST http://VM_IP:8080/provision \
   -d '{
     "script_url": "https://raw.githubusercontent.com/LeAnhlinux/proxmox-template/main/scripts/template/wordpress.sh",
     "domain": "app.example.com",
-    "callback_url": "https://api.example.com/vm/callback",
     "env": {
       "DB_NAME": "mydb",
       "DB_USER": "myuser"
@@ -85,12 +84,12 @@ curl -X POST http://VM_IP:8080/provision \
   }'
 ```
 
-**Async mode** — returns immediately, reports via callback:
+**Async mode** — returns immediately:
 
 ```bash
 curl -X POST "http://VM_IP:8080/provision?async=true" \
   -H "Content-Type: application/json" \
-  -d '{ "script_url": "...", "callback_url": "https://api.example.com/callback" }'
+  -d '{ "script_url": "..." }'
 ```
 
 #### Request fields
@@ -99,7 +98,6 @@ curl -X POST "http://VM_IP:8080/provision?async=true" \
 |-------|----------|-------------|
 | `script_url` | ✅ | URL to bash script to download and execute |
 | `domain` | — | Injected as `$DOMAIN` env var |
-| `callback_url` | — | URL to receive status callbacks (started/success/failed) |
 | `env` | — | Custom environment variables passed to the script |
 | `timeout` | — | Execution timeout in seconds (default: 3600) |
 
@@ -113,25 +111,6 @@ curl -X POST "http://VM_IP:8080/provision?async=true" \
 | 403 | IP not allowed or script URL not in allowlist |
 | 409 | Another task is already running |
 | 500 | Script execution failed |
-
-### Callback Payload
-
-Sent to `callback_url` on status change:
-
-```json
-{
-  "hostname": "vm-01",
-  "domain": "app.example.com",
-  "script": "https://raw.githubusercontent.com/.../wordpress.sh",
-  "status": "success",
-  "output": "... last 10,000 chars of stdout/stderr ...",
-  "started_at": "2026-03-17T10:00:00Z",
-  "ended_at": "2026-03-17T10:03:42Z",
-  "duration": "3m42s"
-}
-```
-
-Status values: `started` → `success` | `failed`
 
 ## Security
 
